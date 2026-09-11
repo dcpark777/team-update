@@ -1,0 +1,110 @@
+{#
+  team-update email template.
+
+  Renders a Gmail-safe biweekly leadership update from a cycle YAML.
+  See SPEC.md §4 for the design rules this implements.
+
+  Context expected from render.py:
+    team_name       str
+    cycle_range     str                                            e.g. "Sep 10–24"
+    headline        str
+    shipped         list[{text, owner?}]
+    attention       str | None                                     omitted entirely when None
+    metrics         list[{label, value, total, delta,              length 4, in config order
+                          delta_sign, delta_abs, delta_color}]
+    lines           list[{group, stage_color, status, next}]       one row per partner group
+    initiatives     list[{name, progress, groups_display,          target and owner may be null
+                          target, rag_color, owner?}]
+    links           list[{label, url?}]                            label-only when url is None
+
+  Rules baked in:
+    - fixed 600px width, nested tables only, no <style>, inline styles only
+    - no background-color anywhere; stage / RAG dots are colored ● glyphs
+    - no display:flex, no display:grid
+    - "Needs attention" paragraph omitted when attention is None
+    - `owner` rendered as " (Name)" when present, absent otherwise
+    - font: Arial, Helvetica, sans-serif; body 14px, section labels 11px, headline 18px
+#}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px; max-width:600px; font-family:Arial, Helvetica, sans-serif; color:#1A1A1A;">
+<tr><td style="padding:16px 18px;">
+
+  <div style="font-size:11px; color:#6B6B66; letter-spacing:0.02em; margin-bottom:4px;">{{ team_name }} · {{ cycle_range }}</div>
+  <p style="margin:0 0 12px; font-size:18px; line-height:1.35; font-weight:500;">{{ headline }}</p>
+
+  <div style="font-size:11px; font-weight:500; color:#6B6B66; margin-bottom:4px;">Shipped</div>
+  <ul style="margin:0 0 12px; padding-left:16px; font-size:14px; line-height:1.5;">
+    {%- for item in shipped %}
+    <li style="margin-bottom:4px;">{{ item.text }}{% if item.owner %} ({{ item.owner }}){% endif %}</li>
+    {%- endfor %}
+  </ul>
+
+  {%- if attention %}
+  <p style="margin:0 0 14px; font-size:14px; line-height:1.5;"><span style="font-weight:500; color:#BA7517;">Needs attention:</span> {{ attention }}</p>
+  {%- endif %}
+
+  {#- Metrics 2x2 grid -#}
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-top:1px solid #E5E5E0; border-bottom:1px solid #E5E5E0;">
+    <tr>
+      {%- for m in metrics[:2] %}
+      <td width="50%" valign="top" style="padding:8px {% if loop.first %}12px 8px 0{% else %}0 8px 12px{% endif %};{% if not loop.first %} border-left:1px solid #E5E5E0;{% endif %} border-bottom:1px solid #E5E5E0; font-size:14px;">
+        <div style="font-size:11px; color:#6B6B66;">{{ m.label }}</div>
+        <div style="font-size:20px; font-weight:500; line-height:1.2; margin-top:2px;">
+          {{ m.value }}{% if m.total is not none %}<span style="font-size:12px; color:#6B6B66; font-weight:400;"> / {{ m.total }}</span>{% endif %}
+          {%- if m.delta is not none %} <span style="font-size:12px; color:{{ m.delta_color }}; font-weight:400;">{{ m.delta_sign }}{{ m.delta_abs }}</span>{% endif %}
+        </div>
+      </td>
+      {%- endfor %}
+    </tr>
+    <tr>
+      {%- for m in metrics[2:] %}
+      <td width="50%" valign="top" style="padding:8px {% if loop.first %}12px 8px 0{% else %}0 8px 12px{% endif %};{% if not loop.first %} border-left:1px solid #E5E5E0;{% endif %} font-size:14px;">
+        <div style="font-size:11px; color:#6B6B66;">{{ m.label }}</div>
+        <div style="font-size:20px; font-weight:500; line-height:1.2; margin-top:2px;">
+          {{ m.value }}{% if m.total is not none %}<span style="font-size:12px; color:#6B6B66; font-weight:400;"> / {{ m.total }}</span>{% endif %}
+          {%- if m.delta is not none %} <span style="font-size:12px; color:{{ m.delta_color }}; font-weight:400;">{{ m.delta_sign }}{{ m.delta_abs }}</span>{% endif %}
+        </div>
+      </td>
+      {%- endfor %}
+    </tr>
+  </table>
+
+  {#- Lines -#}
+  <div style="font-size:11px; font-weight:500; color:#6B6B66; margin:12px 0 2px;">Lines</div>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size:14px; margin-bottom:12px;">
+    {%- for line in lines %}
+    <tr>
+      <td valign="top" style="border-top:1px solid #E5E5E0;{% if loop.last %} border-bottom:1px solid #E5E5E0;{% endif %} padding:6px 10px 6px 0; white-space:nowrap;">
+        <span style="color:{{ line.stage_color }}; font-size:12px;">●</span> <span style="font-weight:500;">{{ line.group }}</span>
+      </td>
+      <td valign="top" style="border-top:1px solid #E5E5E0;{% if loop.last %} border-bottom:1px solid #E5E5E0;{% endif %} padding:6px 0;">
+        {{ line.status }}{% if line.next %} · <span style="color:#6B6B66;">next: {{ line.next }}</span>{% endif %}
+      </td>
+    </tr>
+    {%- endfor %}
+  </table>
+
+  {#- Initiatives -#}
+  <div style="font-size:11px; font-weight:500; color:#6B6B66; margin-bottom:4px;">Initiatives</div>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size:14px; margin-bottom:14px;">
+    {%- for init in initiatives %}
+    <tr>
+      <td valign="top" style="padding:3px 6px 3px 0; width:14px;">
+        <span style="color:{{ init.rag_color }}; font-size:12px;">●</span>
+      </td>
+      <td valign="top" style="padding:3px 0;">
+        {{ init.name }} · {{ init.progress }} · {{ init.groups_display }}{% if init.target %} · target {{ init.target }}{% endif %}{% if init.owner %} ({{ init.owner }}){% endif %}
+      </td>
+    </tr>
+    {%- endfor %}
+  </table>
+
+  {#- Footer -#}
+  <div style="border-top:1px solid #E5E5E0; padding-top:10px; font-size:12px; color:#6B6B66;">
+    {%- for link in links -%}
+    {% if link.url %}<a href="{{ link.url }}" style="color:#185FA5; text-decoration:none;">{{ link.label }}</a>{% else %}{{ link.label }}{% endif %}
+    {%- if not loop.last %} · {% endif -%}
+    {%- endfor %}
+  </div>
+
+</td></tr>
+</table>
