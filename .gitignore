@@ -1,0 +1,7 @@
+config.yaml
+repos.yaml
+updates/
+.cache/
+__pycache__/
+.venv/
+*.pyc
